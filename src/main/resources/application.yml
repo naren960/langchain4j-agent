@@ -1,0 +1,20 @@
+spring:
+  application:
+    name: langchain4j-agent-poc
+
+ollama:
+  base-url: http://localhost:11434
+  coder-model: deepseek-coder:6.7b
+  tester-model: deepseek-coder:6.7b
+  timeout-minutes: 3
+
+logging:
+  level:
+    com.poc.agent: DEBUG
+    dev.langchain4j: INFO
+
+git:
+  repo-path: ./generated
+  github-token: ${GITHUB_TOKEN}     # ← never hardcode, use env var
+  repo-owner: your-github-username
+  repo-name: your-repo-name
