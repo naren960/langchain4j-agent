@@ -44,7 +44,7 @@ All LLM inference runs **locally via Ollama** — no data leaves your machine.
 │                  Instruction Sources                │
 │                                                     │
 │   📁 File Watcher    🌐 REST API                    │
-│   ⏰ Scheduler       📨 Message Queue (RabbitMQ)    │
+│   📨 Message Queue (RabbitMQ)                       │
 └──────────────────────┬──────────────────────────────┘
                        ↓
            InstructionDispatcher
@@ -111,7 +111,6 @@ langchain4j-agent-poc/
     │   │       ├── GitService.java             # GitHub push + PR
     │   │       ├── InstructionDispatcher.java  # Central hub
     │   │       ├── MessageQueueListener.java   # RabbitMQ source
-    │   │       ├── SchedulerService.java       # Scheduled polling source
     │   │       └── TestExecutorService.java    # Maven invoker
     │   └── resources/
     │       ├── application.yml
@@ -184,10 +183,6 @@ instruction:
       failed-dir: ./instructions/failed
     rest-api:
       enabled: true
-    scheduler:
-      enabled: false
-      poll-dir: ./instructions/pending
-      cron: "0 */5 * * * *"
     message-queue:
       enabled: false
       queue-name: agent.instructions
@@ -326,7 +321,7 @@ tasks:
 
 ## Instruction Sources
 
-The app runs as a **long-running service** and accepts new instructions from four sources simultaneously.
+The app runs as a **long-running service** and accepts new instructions from three sources simultaneously.
 
 ### 1. 📁 File Watcher *(default: enabled)*
 
@@ -362,22 +357,7 @@ Response:
 }
 ```
 
-### 3. ⏰ Scheduler *(default: disabled)*
-
-Enable in `application.yml` and configure the cron expression:
-
-```yaml
-instruction:
-  sources:
-    scheduler:
-      enabled: true
-      poll-dir: ./instructions/pending
-      cron: "0 */5 * * * *"    # every 5 minutes
-```
-
-Drop YAML files into `./instructions/pending/` — the scheduler picks them up on each tick.
-
-### 4. 📨 Message Queue — RabbitMQ *(default: disabled)*
+### 3. 📨 Message Queue — RabbitMQ *(default: disabled)*
 
 Add the dependency to `build.gradle.kts`:
 
