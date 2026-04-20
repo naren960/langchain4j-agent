@@ -19,11 +19,11 @@ public class InstructionPlan {
 
     @Data
     public static class Pipeline {
-        private int maxRetries = 3;
-        private boolean pushToGithub = false;
-        private boolean createPR = false;
-        private String targetBranch = "main";
-        private String workingBranch = "agent/generated-";
+        private int maxRetries;
+        private boolean pushToGithub;
+        private boolean createPR;
+        private String targetBranch;
+        private String workingBranch;
     }
 
     @Data

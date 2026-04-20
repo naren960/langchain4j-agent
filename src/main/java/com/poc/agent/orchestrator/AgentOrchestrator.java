@@ -36,7 +36,8 @@ public class AgentOrchestrator {
     public AgentOrchestrator(
             @Qualifier("coderChatModel") ChatLanguageModel coderChatModel,
             @Qualifier("testerChatModel") ChatLanguageModel testerChatModel,
-            FileWriterService fileWriter, GitService gitService, ReviewerAgent reviewerAgent,
+            @Qualifier("reviewerChatModel") ChatLanguageModel reviewerChatModel,
+            FileWriterService fileWriter, GitService gitService,
             TestExecutorService testExecutor) {
 
         this.coderAgent = AiServices.create(CoderAgent.class, coderChatModel);
@@ -44,11 +45,11 @@ public class AgentOrchestrator {
         this.fileWriter = fileWriter;
         this.testExecutor = testExecutor;
         this.gitService = gitService;
-        this.reviewerAgent = reviewerAgent;
+        this.reviewerAgent = AiServices.create(ReviewerAgent.class, reviewerChatModel);
     }
 
     public void execute(InstructionPlan plan) {
-        log.info("🚀 Starting orchestration for project: {}",
+        log.info("Starting orchestration for project: {}",
                 plan.getProject().getName());
 
         int maxRetries = plan.getPipeline().getMaxRetries();
@@ -57,11 +58,11 @@ public class AgentOrchestrator {
 
             // Wait for dependencies to complete
             if (!areDependenciesMet(task)) {
-                log.warn("⏭️ Skipping {} — dependencies not met", task.getId());
+                log.warn("Skipping {} — dependencies not met", task.getId());
                 continue;
             }
 
-            log.info("▶️ Executing task: {} [{}]", task.getId(), task.getType());
+            log.info("Executing task: {} [{}]", task.getId(), task.getType());
 
             switch (task.getType()) {
                 case CODE_GENERATION -> handleWithRetry(task, plan.getProject(), maxRetries);
@@ -81,7 +82,7 @@ public class AgentOrchestrator {
         String lastErrors = null;
 
         for (int attempt = 1; attempt <= maxRetries; attempt++) {
-            log.info("▶️ Task: {} | Attempt {}/{}",
+            log.info("Task: {} | Attempt {}/{}",
                     task.getId(), attempt, maxRetries);
 
             try {
@@ -106,18 +107,18 @@ public class AgentOrchestrator {
                 if (compileCheck.isPassed()) {
                     taskResults.put(task.getId(),
                             TaskResult.success(task.getId(), filePath));
-                    log.info("✅ Task {} succeeded on attempt {}",
+                    log.info("Task {} succeeded on attempt {}",
                             task.getId(), attempt);
                     return;
                 } else {
                     lastErrors = compileCheck.getSummary();
-                    log.warn("⚠️ Compile failed on attempt {}: {}",
+                    log.warn("Compile failed on attempt {}: {}",
                             attempt, lastErrors);
                 }
 
             } catch (Exception e) {
                 lastErrors = e.getMessage();
-                log.error("❌ Attempt {} failed: {}", attempt, e.getMessage());
+                log.error("Attempt {} failed: {}", attempt, e.getMessage());
             }
         }
 
@@ -126,7 +127,7 @@ public class AgentOrchestrator {
                 TaskResult.failure(task.getId(),
                         "Failed after " + maxRetries + " attempts. Last error: "
                                 + lastErrors));
-        log.error("❌ Task {} failed after all retries", task.getId());
+        log.error("Task {} failed after all retries", task.getId());
     }
 
     private void handleCodeGeneration(
@@ -149,12 +150,12 @@ public class AgentOrchestrator {
 
             taskResults.put(task.getId(),
                     TaskResult.success(task.getId(), filePath));
-            log.info("✅ Code generated: {}", filePath);
+            log.info("Code generated: {}", filePath);
 
         } catch (Exception e) {
             taskResults.put(task.getId(),
                     TaskResult.failure(task.getId(), e.getMessage()));
-            log.error("❌ Code generation failed for {}: {}",
+            log.error("Code generation failed for {}: {}",
                     task.getId(), e.getMessage());
         }
     }
@@ -177,12 +178,12 @@ public class AgentOrchestrator {
 
             taskResults.put(task.getId(),
                     TaskResult.success(task.getId(), filePath));
-            log.info("✅ Tests generated: {}", filePath);
+            log.info("Tests generated: {}", filePath);
 
         } catch (Exception e) {
             taskResults.put(task.getId(),
                     TaskResult.failure(task.getId(), e.getMessage()));
-            log.error("❌ Test generation failed: {}", e.getMessage());
+            log.error("Test generation failed: {}", e.getMessage());
         }
     }
 
@@ -190,7 +191,7 @@ public class AgentOrchestrator {
             InstructionPlan.Task task, InstructionPlan plan, int maxRetries) {
 
         for (int attempt = 1; attempt <= maxRetries; attempt++) {
-            log.info("🧪 Running tests | Attempt {}/{}", attempt, maxRetries);
+            log.info("Running tests | Attempt {}/{}", attempt, maxRetries);
 
             TestExecutionResult result = testExecutor.runTests(plan.getProject().getOutputDir());
 

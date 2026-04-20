@@ -6,6 +6,7 @@ ollama:
   base-url: http://localhost:11434
   coder-model: deepseek-coder:6.7b
   tester-model: deepseek-coder:6.7b
+  reviewer-model: deepseek-coder:6.7b
   timeout-minutes: 3
 
 logging:
@@ -15,6 +16,6 @@ logging:
 
 git:
   repo-path: ./generated
-  github-token: ${GITHUB_TOKEN}     # ← never hardcode, use env var
-  repo-owner: your-github-username
-  repo-name: your-repo-name
+  github-token: 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     # ← never hardcode, use env var
+  repo-owner: nrawat960
+  repo-name: test-repo

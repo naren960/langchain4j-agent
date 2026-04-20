@@ -20,6 +20,9 @@ public class OllamaConfig {
     @Value("${ollama.tester-model}")
     private String testerModelName;
 
+    @Value("${ollama.reviewer-model}")
+    private String reviewerModelName;
+
     @Value("${ollama.timeout-minutes}")
     private int timeoutMinutes;
 
@@ -47,7 +50,7 @@ public class OllamaConfig {
     public ChatLanguageModel reviewerModel() {
         return OllamaChatModel.builder()
                 .baseUrl(baseUrl)
-                .modelName(testerModelName)
+                .modelName(reviewerModelName)
                 .temperature(0.1)
                 .timeout(Duration.ofMinutes(timeoutMinutes))
                 .build();
