@@ -16,6 +16,6 @@ logging:
 
 git:
   repo-path: ./generated
-  github-token: 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     # ← never hardcode, use env var
+  github-token: <TOKEN>     # ← never hardcode, use env var
   repo-owner: nrawat960
   repo-name: test-repo
