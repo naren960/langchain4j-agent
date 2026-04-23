@@ -9,6 +9,13 @@ ollama:
   reviewer-model: deepseek-coder:6.7b
   timeout-minutes: 3
 
+#ollama:
+#  base-url: http://localhost:11434
+#  coder-model: qwen2.5-coder:7b      # ← updated
+#  tester-model: qwen2.5-coder:7b     # ← updated
+#  reviewer-model: qwen2.5-coder:7b   # ← updated
+#  timeout-minutes: 5
+
 logging:
   level:
     com.poc.agent: DEBUG
@@ -16,6 +23,9 @@ logging:
 
 git:
   repo-path: ./generated
-  github-token: <TOKEN>     # ← never hardcode, use env var
+  github-token:  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
   repo-owner: nrawat960
   repo-name: test-repo
+
+gradle:
+  installation-dir: /opt/homebrew/Cellar/gradle/9.4.1/libexec

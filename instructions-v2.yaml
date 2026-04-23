@@ -1,0 +1,224 @@
+project:
+  name: Product Catalog Service
+  basePackage: com.poc.productcatalog
+  outputDir: ./generated
+
+pipeline:
+  maxRetries: 3                    # max regeneration attempts per task
+  pushToGithub: true               # toggle git push on/off
+  createPR: true
+  targetBranch: main
+  workingBranch: agent/generated-
+
+tasks:
+  - id: task-001
+    type: CODE_GENERATION
+    description: >
+      Create a Product model with id, name, description, price, and category fields.
+      Class name: com.poc.productcatalog.model.Product
+      Imports: 
+        - javax.persistence.Entity
+        - javax.persistence.Id
+        - javax.persistence.GeneratedValue
+        - javax.persistence.GenerationType
+        - javax.validation.constraints.NotNull
+        - javax.validation.constraints.Size
+      Fields:
+        - id: Long, @Id, @GeneratedValue(strategy = GenerationType.IDENTITY)
+        - name: String, @NotNull, @Size(max = 100)
+        - description: String, @Size(max = 500)
+        - price: Double, @NotNull
+        - category: String, @Size(max = 100)
+      Validation rules and constraints:
+        - name: must not be null, max 100 chars
+        - description: max 500 chars
+        - price: must not be null
+        - category: max 100 chars
+      Edge cases to handle:
+        - Handle null input by throwing IllegalArgumentException
+      Error handling requirements:
+        - Throw custom ProductValidationException if validation fails
+      Success/failure criteria:
+        - Success: returns created Product object
+    targetClass: Product
+    layer: model
+
+  - id: task-002
+    type: TEST_GENERATION
+    description: >
+      Generate JUnit tests for the Product model.
+      Class name: com.poc.productcatalog.model.ProductTest
+      Imports: 
+        - org.junit.Test
+        - org.junit.runner.RunWith
+        - org.springframework.test.context.junit4.SpringRunner
+        - static org.junit.Assert.assertEquals
+      Test methods:
+        - testProductCreation()
+        - testProductValidation()
+      Tests for: task-001
+    targetClass: ProductTest
+    layer: model
+
+  - id: task-003
+    type: CODE_GENERATION
+    description: >
+      Implement a ProductRepository interface with methods to save, find by id, find all, and delete products.
+      Class name: com.poc.productcatalog.repository.ProductRepository
+      Imports: 
+        - org.springframework.data.repository.CrudRepository
+        - com.poc.productcatalog.model.Product
+      Methods:
+        - public Product save(Product product) throws DataAccessException
+        - public Product findById(Long id) throws ProductNotFoundException
+        - public List<Product> findAll() throws DataAccessException
+        - public void deleteById(Long id) throws DataAccessException
+      Validation rules and constraints:
+        - id: must not be null
+      Edge cases to handle:
+        - Handle null input by throwing IllegalArgumentException
+      Error handling requirements:
+        - Throw custom ProductNotFoundException if product not found
+        - Throw custom DataAccessException if database error occurs
+      Success/failure criteria:
+        - Success: returns saved Product with generated ID
+        - Success: returns found Product
+        - Success: returns list of all products
+        - Success: deletes product by ID
+    targetClass: ProductRepository
+    layer: repository
+
+  - id: task-004
+    type: TEST_GENERATION
+    description: >
+      Generate JUnit tests for the ProductRepository interface.
+      Class name: com.poc.productcatalog.repository.ProductRepositoryTest
+      Imports: 
+        - org.junit.Test
+        - org.junit.runner.RunWith
+        - org.springframework.test.context.junit4.SpringRunner
+        - static org.junit.Assert.assertEquals
+      Test methods:
+        - testProductSave()
+        - testProductFindById()
+        - testProductFindAll()
+        - testProductDelete()
+      Tests for: task-003
+    targetClass: ProductRepositoryTest
+    layer: repository
+
+  - id: task-005
+    type: CODE_GENERATION
+    description: >
+      Create a ProductService class with business logic for managing products.
+      Class name: com.poc.productcatalog.service.ProductService
+      Imports: 
+        - org.springframework.beans.factory.annotation.Autowired
+        - com.poc.productcatalog.repository.ProductRepository
+      Methods:
+        - public Product saveProduct(Product product) throws ProductValidationException
+        - public Product findProductById(Long id) throws ProductNotFoundException
+        - public List<Product> findAllProducts() throws DataAccessException
+        - public void deleteProductById(Long id) throws DataAccessException
+      Validation rules and constraints:
+        - id: must not be null
+      Edge cases to handle:
+        - Handle null input by throwing IllegalArgumentException
+      Error handling requirements:
+        - Throw custom ProductNotFoundException if product not found
+        - Throw custom DataAccessException if database error occurs
+      Success/failure criteria:
+        - Success: returns saved Product with generated ID
+        - Success: returns found Product
+        - Success: returns list of all products
+        - Success: deletes product by ID
+    targetClass: ProductService
+    layer: service
+
+  - id: task-006
+    type: TEST_GENERATION
+    description: >
+      Generate JUnit tests for the ProductService class.
+      Class name: com.poc.productcatalog.service.ProductServiceTest
+      Imports: 
+        - org.junit.Test
+        - org.junit.runner.RunWith
+        - org.springframework.test.context.junit4.SpringRunner
+        - static org.junit.Assert.assertEquals
+      Test methods:
+        - testProductSave()
+        - testProductFindById()
+        - testProductFindAll()
+        - testProductDelete()
+      Tests for: task-005
+    targetClass: ProductServiceTest
+    layer: service
+
+  - id: task-007
+    type: CODE_GENERATION
+    description: >
+      Build REST API endpoints for product management.
+      Class name: com.poc.productcatalog.controller.ProductController
+      Imports: 
+        - org.springframework.beans.factory.annotation.Autowired
+        - org.springframework.http.ResponseEntity
+        - org.springframework.web.bind.annotation.DeleteMapping
+        - org.springframework.web.bind.annotation.GetMapping
+        - org.springframework.web.bind.annotation.PathVariable
+        - org.springframework.web.bind.annotation.PostMapping
+        - org.springframework.web.bind.annotation.PutMapping
+        - org.springframework.web.bind.annotation.RequestBody
+        - com.poc.productcatalog.service.ProductService
+      Methods:
+        - @GetMapping("/api/products")
+          public ResponseEntity<List<Product>> getAllProducts() throws DataAccessException
+        - @GetMapping("/api/products/{id}")
+          public ResponseEntity<Product> getProductById(@PathVariable Long id) throws ProductNotFoundException
+        - @PostMapping("/api/products")
+          public ResponseEntity<Product> createProduct(@RequestBody Product product) throws ProductValidationException
+        - @PutMapping("/api/products/{id}")
+          public ResponseEntity<Product> updateProduct(@PathVariable Long id, @RequestBody Product product) throws ProductNotFoundException
+        - @DeleteMapping("/api/products/{id}")
+          public ResponseEntity<Void> deleteProduct(@PathVariable Long id) throws DataAccessException
+      Validation rules and constraints:
+        - id: must not be null
+      Edge cases to handle:
+        - Handle null input by throwing IllegalArgumentException
+      Error handling requirements:
+        - Throw custom ProductNotFoundException if product not found
+        - Throw custom DataAccessException if database error occurs
+      Success/failure criteria:
+        - Success: returns list of all products
+        - Success: returns found Product
+        - Success: returns saved Product with generated ID
+        - Success: updates product by ID
+        - Success: deletes product by ID
+    targetClass: ProductController
+    layer: controller
+
+  - id: task-008
+    type: TEST_GENERATION
+    description: >
+      Generate JUnit tests for the ProductController class.
+      Class name: com.poc.productcatalog.controller.ProductControllerTest
+      Imports: 
+        - org.junit.Test
+        - org.junit.runner.RunWith
+        - org.springframework.test.context.junit4.SpringRunner
+        - static org.junit.Assert.assertEquals
+      Test methods:
+        - testGetAllProducts()
+        - testGetProductById()
+        - testCreateProduct()
+        - testUpdateProduct()
+        - testDeleteProduct()
+      Tests for: task-007
+    targetClass: ProductControllerTest
+    layer: controller
+
+  - id: task-009
+    type: TEST_EXECUTION
+    description: >
+      Execute all generated tests.
+      Dependencies: [task-002, task-004, task-006, task-008]
+    dependsOn: [task-002, task-004, task-006, task-008]

@@ -1,0 +1,176 @@
+project:
+  name: Product Catalog Service
+  basePackage: com.poc.productcatalog
+  outputDir: ./generated
+
+tasks:
+  - id: task-001
+    type: CODE_GENERATION
+    description: >
+      Create a Product model with id, name, description, price, and category fields.
+      The Product class should be annotated with @Entity and have the following fields:
+      - id (Long, primary key, generated value)
+      - name (String, not null, max 100 chars)
+      - description (String, max 500 chars)
+      - price (BigDecimal, not null)
+      - category (String, not null, max 100 chars)
+      The class should have getters and setters for all fields, as well as a toString method.
+      imports:
+        - javax.persistence.Entity
+        - javax.persistence.GeneratedValue
+        - javax.persistence.GenerationType
+        - javax.persistence.Id
+        - javax.validation.constraints.NotNull
+        - javax.validation.constraints.Size
+      Validation rules and constraints:
+        - name: must not be null, max 100 chars
+        - description: max 500 chars
+        - price: must not be null
+        - category: must not be null, max 100 chars
+      Edge cases to handle:
+        - Handle null input by throwing IllegalArgumentException
+      Error handling requirements:
+        - Throw IllegalArgumentException if validation fails
+      Success/failure criteria:
+        - Success: returns the created Product object
+      targetClass: com.poc.productcatalog.model.Product
+      layer: model
+
+  - id: task-002
+    type: TEST_GENERATION
+    description: >
+      Generate JUnit tests for the Product model.
+      The tests should cover the following scenarios:
+      - Test that the Product class has the correct annotations
+      - Test that the getters and setters work correctly
+      - Test that the toString method returns the correct string
+      - Test that the validation rules are enforced
+      targetClass: com.poc.productcatalog.model.Product
+      layer: model
+      testsFor: task-001
+
+  - id: task-003
+    type: CODE_GENERATION
+    description: >
+      Implement a ProductRepository interface with methods to save, find by id, find all, and delete products.
+      The ProductRepository interface should have the following methods:
+      - public Product save(Product product) throws DataAccessException
+      - public Product findById(Long id) throws ProductNotFoundException
+      - public List<Product> findAll() throws DataAccessException
+      - public void delete(Product product) throws DataAccessException
+      imports:
+        - org.springframework.data.repository.CrudRepository
+        - org.springframework.stereotype.Repository
+      Validation rules and constraints:
+        - Product must not be null
+      Edge cases to handle:
+        - Handle null input by throwing IllegalArgumentException
+      Error handling requirements:
+        - Throw DataAccessException if database operation fails
+        - Throw ProductNotFoundException if product not found
+      Success/failure criteria:
+        - Success: returns the saved Product object
+      targetClass: com.poc.productcatalog.repository.ProductRepository
+      layer: repository
+
+  - id: task-004
+    type: TEST_GENERATION
+    description: >
+      Generate JUnit tests for the ProductRepository interface.
+      The tests should cover the following scenarios:
+      - Test that the save method works correctly
+      - Test that the findById method works correctly
+      - Test that the findAll method works correctly
+      - Test that the delete method works correctly
+      targetClass: com.poc.productcatalog.repository.ProductRepository
+      layer: repository
+      testsFor: task-003
+
+  - id: task-005
+    type: CODE_GENERATION
+    description: >
+      Create a ProductService class with business logic for managing products.
+      The ProductService class should have the following methods:
+      - public Product saveProduct(Product product) throws DataAccessException
+      - public Product getProductById(Long id) throws ProductNotFoundException
+      - public List<Product> getAllProducts() throws DataAccessException
+      - public void deleteProduct(Product product) throws DataAccessException
+      imports:
+        - org.springframework.beans.factory.annotation.Autowired
+        - org.springframework.stereotype.Service
+      Validation rules and constraints:
+        - Product must not be null
+      Edge cases to handle:
+        - Handle null input by throwing IllegalArgumentException
+      Error handling requirements:
+        - Throw DataAccessException if database operation fails
+        - Throw ProductNotFoundException if product not found
+      Success/failure criteria:
+        - Success: returns the saved Product object
+      targetClass: com.poc.productcatalog.service.ProductService
+      layer: service
+
+  - id: task-006
+    type: TEST_GENERATION
+    description: >
+      Generate JUnit tests for the ProductService class.
+      The tests should cover the following scenarios:
+      - Test that the saveProduct method works correctly
+      - Test that the getProductById method works correctly
+      - Test that the getAllProducts method works correctly
+      - Test that the deleteProduct method works correctly
+      targetClass: com.poc.productcatalog.service.ProductService
+      layer: service
+      testsFor: task-005
+
+  - id: task-007
+    type: CODE_GENERATION
+    description: >
+      Build REST API endpoints for managing products.
+      The API endpoints should be:
+      - GET /api/products - list all products
+      - GET /api/products/{id} - get product by id
+      - POST /api/products - create new product
+      - PUT /api/products/{id} - update product
+      - DELETE /api/products/{id} - delete product
+      imports:
+        - org.springframework.web.bind.annotation.GetMapping
+        - org.springframework.web.bind.annotation.PathVariable
+        - org.springframework.web.bind.annotation.PostMapping
+        - org.springframework.web.bind.annotation.PutMapping
+        - org.springframework.web.bind.annotation.DeleteMapping
+      Validation rules and constraints:
+        - Product must not be null
+      Edge cases to handle:
+        - Handle null input by throwing IllegalArgumentException
+      Error handling requirements:
+        - Throw DataAccessException if database operation fails
+        - Throw ProductNotFoundException if product not found
+      Success/failure criteria:
+        - Success: returns the saved Product object
+      targetClass: com.poc.productcatalog.controller.ProductController
+      layer: controller
+
+  - id: task-008
+    type: TEST_GENERATION
+    description: >
+      Generate JUnit tests for the ProductController class.
+      The tests should cover the following scenarios:
+      - Test that the GET /api/products endpoint works correctly
+      - Test that the GET /api/products/{id} endpoint works correctly
+      - Test that the POST /api/products endpoint works correctly
+      - Test that the PUT /api/products/{id} endpoint works correctly
+      - Test that the DELETE /api/products/{id} endpoint works correctly
+      targetClass: com.poc.productcatalog.controller.ProductController
+      layer: controller
+      testsFor: task-007
+
+  - id: task-009
+    type: TEST_EXECUTION
+    description: >
+      Execute all generated tests.
+      dependencies:
+        - task-002
+        - task-004
+        - task-006
+        - task-008

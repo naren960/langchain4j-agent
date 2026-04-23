@@ -4,36 +4,26 @@ import dev.langchain4j.service.SystemMessage;
 import dev.langchain4j.service.UserMessage;
 import dev.langchain4j.service.V;
 
-
 public interface ReviewerAgent {
 
     @SystemMessage("""
-        You are an expert Java code reviewer and debugger.
-        You will be given:
-        1. Original task description
-        2. Previously generated code that failed to compile or pass tests
-        3. The exact error messages
-        
-        Your job is to produce a FIXED version of the code.
-        
-        STRICT OUTPUT RULES:
-        - Output RAW Java code only
-        - No markdown backticks
-        - No explanations after the class
-        - First line must be package declaration
-        - Last line must be closing brace
+        You are an expert Java code reviewer.
+        Output ONLY raw Java code with all errors fixed.
+        No markdown, no backticks, no explanations.
+        First line must be the package declaration.
+        Last line must be the closing brace.
+        Keep the EXACT same package as the original code.
         """)
     @UserMessage("""
         Original task: {{description}}
         
-        Previously generated code:
+        Failing code:
         {{previousCode}}
         
-        Errors encountered:
+        Errors to fix:
         {{errors}}
         
-        Generate the corrected Java class: {{targetClass}}
-        Fix ALL errors listed above.
+        Generate the corrected class: {{targetClass}}
         """)
     String reviewAndFix(
             @V("description") String description,

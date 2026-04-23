@@ -2,53 +2,95 @@ package com.poc.agent.service;
 
 import com.poc.agent.model.TestExecutionResult;
 import lombok.extern.slf4j.Slf4j;
-import org.apache.maven.shared.invoker.*;
+import org.gradle.tooling.BuildException;
+import org.gradle.tooling.GradleConnector;
+import org.gradle.tooling.ProjectConnection;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
+import java.io.ByteArrayOutputStream;
 import java.io.File;
-import java.util.List;
 
 @Service
 @Slf4j
 public class TestExecutorService {
 
-    public com.poc.agent.model.TestExecutionResult runTests(String projectDir) {
-        try {
-            InvocationRequest request = new DefaultInvocationRequest();
-            request.setPomFile(new File(projectDir + "/pom.xml"));
-            request.setGoals(List.of("test"));
-            request.setBatchMode(true);
+    @Value("${gradle.installation-dir:}")
+    private String gradleInstallationDir;
 
-            InvocationOutputHandler outputHandler = log::info;
-            request.setOutputHandler(outputHandler);
-
-            Invoker invoker = new DefaultInvoker();
-            InvocationResult result = invoker.execute(request);
-
-            boolean passed = result.getExitCode() == 0;
-            return new com.poc.agent.model.TestExecutionResult(passed,
-                    passed ? "All tests passed ✅" : "Tests failed ❌");
-
-        } catch (Exception e) {
-            return new com.poc.agent.model.TestExecutionResult(false, "Execution error: " + e.getMessage());
-        }
+    public TestExecutionResult runTests(String projectDir) {
+        return invoke(projectDir, "test");
     }
 
     public TestExecutionResult compileOnly(String projectDir) {
-        try {
-            InvocationRequest request = new DefaultInvocationRequest();
-            request.setPomFile(new File(projectDir + "/pom.xml"));
-            request.setGoals(List.of("compile"));   // ← compile only, no tests
-            request.setBatchMode(true);
+        return invoke(projectDir, "compileJava");
+    }
 
-            InvocationResult result = new DefaultInvoker().execute(request);
-            boolean passed = result.getExitCode() == 0;
-            return new TestExecutionResult(passed,
-                    passed ? "Compilation successful" : "Compilation failed");
+
+    public TestExecutionResult invoke(String projectDir, String task) {
+
+        File projectDirFile = new File(projectDir);
+
+        if (!projectDirFile.exists()) {
+            return new TestExecutionResult(false,
+                    "Project dir not found: " + projectDir);
+        }
+
+        File gradlew = new File(projectDirFile,"gradlew");
+
+        if (!gradlew.exists()) {
+            return new TestExecutionResult(false,
+                    "gradlew not found in: " + projectDir);
+        }
+
+        ByteArrayOutputStream outputStream = new ByteArrayOutputStream();
+        ByteArrayOutputStream error = new ByteArrayOutputStream();
+
+        try(ProjectConnection connection = buildConnection(projectDirFile)) {
+
+            connection.newBuild()
+                    .forTasks(task)
+                    .setStandardOutput(outputStream)
+                    .setStandardError(error)
+                    .withArguments("--info", "--stacktrace")
+                    .run();
+
+            log.debug("Gradle {} output:\n{}", task, outputStream);
+            return new TestExecutionResult(true, task + " successful");
+        } catch (BuildException e) {
+
+            String fullOutput = outputStream.toString();
+            String errorOutput = error.toString();
+
+            log.warn("Gradle {} failed" +
+                            "\n--- STDOUT ---\n{}" +
+                            "\n--- STDERR ---\n{}" +
+                            "\n--- EXCEPTION ---\n{}",
+                    task, fullOutput, errorOutput, e.getMessage());
+
+            return new TestExecutionResult(false,
+                    task + " failed \n" + errorOutput);
 
         } catch (Exception e) {
+            log.error(" Gradle invocation error: {}", e.getMessage());
             return new TestExecutionResult(false,
-                    "Compile error: " + e.getMessage());
+                    "Gradle error: " + e.getMessage());
         }
+    }
+
+    private ProjectConnection buildConnection(File projectDir) {
+        GradleConnector connector = GradleConnector.newConnector()
+                .forProjectDirectory(projectDir);
+
+
+        // Use specific Gradle installation if configured
+        // Otherwise Tooling API downloads the right version automatically
+        if (gradleInstallationDir != null && !gradleInstallationDir.isBlank()) {
+            connector.useInstallation(new File(gradleInstallationDir));
+        } else {
+            // Reads the version from generated project's gradle/wrapper/gradle-wrapper.properties
+            connector.useBuildDistribution();
+        }
+        return connector.connect();
     }
 }

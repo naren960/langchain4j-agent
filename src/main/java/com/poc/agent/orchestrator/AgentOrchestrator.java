@@ -32,6 +32,7 @@ public class AgentOrchestrator {
     private final ReviewerAgent reviewerAgent;
     private final Map<String, TaskResult> taskResults = new LinkedHashMap<>();
     private final Map<String, String> generatedCode = new HashMap<>();
+    private InstructionPlan currentPlan;
 
     public AgentOrchestrator(
             @Qualifier("coderChatModel") ChatLanguageModel coderChatModel,
@@ -49,185 +50,195 @@ public class AgentOrchestrator {
     }
 
     public void execute(InstructionPlan plan) {
-        log.info("Starting orchestration for project: {}",
+        this.currentPlan = plan;
+        log.info("🚀 Starting orchestration: {}",
                 plan.getProject().getName());
+
+        taskResults.clear();
+        generatedCode.clear();
 
         int maxRetries = plan.getPipeline().getMaxRetries();
 
         for (InstructionPlan.Task task : plan.getTasks()) {
 
-            // Wait for dependencies to complete
             if (!areDependenciesMet(task)) {
-                log.warn("Skipping {} — dependencies not met", task.getId());
+                log.warn("⏭️ Skipping {} — dependencies not met",
+                        task.getId());
+                taskResults.put(task.getId(),
+                        TaskResult.failure(task.getId(),
+                                "Dependencies not met"));
                 continue;
             }
 
-            log.info("Executing task: {} [{}]", task.getId(), task.getType());
+            log.info("▶️ Executing task: {} [{}]",
+                    task.getId(), task.getType());
 
             switch (task.getType()) {
-                case CODE_GENERATION -> handleWithRetry(task, plan.getProject(), maxRetries);
-                case TEST_GENERATION -> handleWithRetry(task, plan.getProject(), maxRetries);
-                case TEST_EXECUTION  -> handleTestExecution(task, plan, maxRetries);
-                case GIT_PUSH -> handleGitPush(task, plan);
+                case CODE_GENERATION ->
+                        handleGeneration(task, plan.getProject(), maxRetries);
+                case TEST_GENERATION ->
+                        handleGeneration(task, plan.getProject(), maxRetries);
+                case TEST_EXECUTION ->
+                        handleTestExecution(task, plan.getProject(), maxRetries);
+                case GIT_PUSH ->
+                        handleGitPush(task, plan);
             }
         }
+
         printSummary();
     }
 
-    // ── Retry loop for code + test generation ────────────────
-    private void handleWithRetry(InstructionPlan.Task task,
-                                 InstructionPlan.Project project, int maxRetries) {
-
-        String lastCode = null;
-        String lastErrors = null;
+    // ── Generation — no compile check per task ────────────────
+    // Just generate and write. Compilation happens in TEST_EXECUTION.
+    private void handleGeneration(InstructionPlan.Task task,
+                                  InstructionPlan.Project project, int maxRetries) {
 
         for (int attempt = 1; attempt <= maxRetries; attempt++) {
-            log.info("Task: {} | Attempt {}/{}",
+            log.info("▶️ Task: {} | Attempt {}/{}",
                     task.getId(), attempt, maxRetries);
 
             try {
-                // First attempt → use CoderAgent/TesterAgent
-                // Subsequent attempts → use ReviewerAgent to self-heal
                 String code = (attempt == 1)
                         ? generateFresh(task, project)
                         : reviewerAgent.reviewAndFix(
                         task.getDescription(),
-                        lastCode,
-                        lastErrors,
+                        generatedCode.getOrDefault(task.getId(), ""),
+                        "Previous generation was invalid Java code.",
                         task.getTargetClass());
 
+                // sanitize() throws if LLM returned explanation text
                 String filePath = writeFile(task, project, code);
-                lastCode = code;
                 generatedCode.put(task.getId(), code);
 
-                // Quick compile check before marking success
-                TestExecutionResult compileCheck =
-                        testExecutor.compileOnly(project.getOutputDir());
+                taskResults.put(task.getId(),
+                        TaskResult.success(task.getId(), filePath));
+                log.info("✅ Task {} generated on attempt {}",
+                        task.getId(), attempt);
+                return;
 
-                if (compileCheck.isPassed()) {
-                    taskResults.put(task.getId(),
-                            TaskResult.success(task.getId(), filePath));
-                    log.info("Task {} succeeded on attempt {}",
-                            task.getId(), attempt);
-                    return;
-                } else {
-                    lastErrors = compileCheck.getSummary();
-                    log.warn("Compile failed on attempt {}: {}",
-                            attempt, lastErrors);
-                }
+            } catch (IllegalArgumentException e) {
+                // LLM returned explanation text — retry
+                log.warn("⚠️ Invalid LLM output on attempt {}: {}",
+                        attempt, e.getMessage());
 
             } catch (Exception e) {
-                lastErrors = e.getMessage();
-                log.error("Attempt {} failed: {}", attempt, e.getMessage());
+                log.error("❌ Attempt {} failed: {}",
+                        attempt, e.getMessage());
             }
         }
 
-        // All retries exhausted
         taskResults.put(task.getId(),
                 TaskResult.failure(task.getId(),
-                        "Failed after " + maxRetries + " attempts. Last error: "
-                                + lastErrors));
-        log.error("Task {} failed after all retries", task.getId());
+                        "Failed to generate valid code after "
+                                + maxRetries + " attempts"));
+        log.error("❌ Task {} failed after all retries", task.getId());
     }
 
-    private void handleCodeGeneration(
-            InstructionPlan.Task task, InstructionPlan.Project project) {
-        try {
-            String code = coderAgent.generateCode(
-                    project.getBasePackage(),
-                    task.getLayer(),
-                    task.getDescription(),
-                    task.getTargetClass()
-            );
-
-            String filePath = fileWriter.writeJavaFile(
-                    project.getOutputDir(),
-                    project.getBasePackage(),
-                    task.getLayer(),
-                    task.getTargetClass(),
-                    code
-            );
-
-            taskResults.put(task.getId(),
-                    TaskResult.success(task.getId(), filePath));
-            log.info("Code generated: {}", filePath);
-
-        } catch (Exception e) {
-            taskResults.put(task.getId(),
-                    TaskResult.failure(task.getId(), e.getMessage()));
-            log.error("Code generation failed for {}: {}",
-                    task.getId(), e.getMessage());
-        }
-    }
-
-    private void handleTestGeneration(
-            InstructionPlan.Task task, InstructionPlan.Project project) {
-        try {
-            String testCode = testerAgent.generateTests(
-                    project.getBasePackage(),
-                    task.getDescription(),
-                    task.getTargetClass()
-            );
-
-            String filePath = fileWriter.writeTestFile(
-                    project.getOutputDir(),
-                    project.getBasePackage(),
-                    task.getTargetClass(),
-                    testCode
-            );
-
-            taskResults.put(task.getId(),
-                    TaskResult.success(task.getId(), filePath));
-            log.info("Tests generated: {}", filePath);
-
-        } catch (Exception e) {
-            taskResults.put(task.getId(),
-                    TaskResult.failure(task.getId(), e.getMessage()));
-            log.error("Test generation failed: {}", e.getMessage());
-        }
-    }
-
-    private void handleTestExecution(
-            InstructionPlan.Task task, InstructionPlan plan, int maxRetries) {
+    // ── Test execution — compile + test + self-heal loop ─────
+    private void handleTestExecution(InstructionPlan.Task task,
+                                     InstructionPlan.Project project, int maxRetries) {
 
         for (int attempt = 1; attempt <= maxRetries; attempt++) {
-            log.info("Running tests | Attempt {}/{}", attempt, maxRetries);
+            log.info("🧪 Compile + Test | Attempt {}/{}",
+                    attempt, maxRetries);
 
-            TestExecutionResult result = testExecutor.runTests(plan.getProject().getOutputDir());
+            // Step 1 — compile all generated classes together
+            TestExecutionResult compileResult =
+                    testExecutor.compileOnly(project.getOutputDir());
 
-            if (result.isPassed()) {
+            if (!compileResult.isPassed()) {
+                log.warn("⚠️ Compile failed on attempt {}: {}",
+                        attempt, compileResult.getSummary());
+
+                if (attempt < maxRetries) {
+                    healCompileErrors(compileResult.getSummary(),
+                            project);
+                }
+                continue;
+            }
+
+            // Step 2 — run tests only if compile passed
+            TestExecutionResult testResult =
+                    testExecutor.runTests(project.getOutputDir());
+
+            if (testResult.isPassed()) {
                 taskResults.put(task.getId(),
-                        TaskResult.success(task.getId(), result.getSummary()));
-                log.info("All tests passed on attempt: {}", attempt);
+                        TaskResult.success(task.getId(),
+                                testResult.getSummary()));
+                log.info("✅ All tests passed on attempt {}", attempt);
                 return;
             }
 
-            log.warn("Test failed on attempt: {}, {}", attempt, result.getSummary());
+            log.warn("⚠️ Tests failed on attempt {}: {}",
+                    attempt, testResult.getSummary());
 
             if (attempt < maxRetries) {
-                log.info("Asking ReviewerAgent to fix failing tests...");
-
-                plan.getTasks().stream()
-                        .filter(t -> t.getType().equals(InstructionPlan.TaskType.TEST_GENERATION))
-                        .forEach(testTask -> {
-                            String fixedTest = reviewerAgent.reviewAndFix(
-                                    testTask.getDescription(),
-                                    generatedCode.getOrDefault(testTask.getId(), ""),
-                                    result.getSummary(),
-                                    testTask.getTargetClass());
-                                try {
-                                    writeFile(testTask, plan.getProject(), fixedTest);
-                                    generatedCode.put(testTask.getId(), fixedTest);
-                                } catch (Exception e) {
-                                    log.error("Failed to write fixed test: {}", e.getMessage());
-                                }
-                        });
+                healTestErrors(testResult.getSummary(), project);
             }
-
-            taskResults.put(task.getId(),
-                    TaskResult.failure(task.getId(), "Tests failed after " + maxRetries + " attempts"));
         }
+
+        taskResults.put(task.getId(),
+                TaskResult.failure(task.getId(),
+                        "Compile + test failed after "
+                                + maxRetries + " attempts"));
+        log.error("❌ TEST_EXECUTION failed after all retries");
     }
+
+    // ── Heal compile errors across all generated classes ──────
+    private void healCompileErrors(String errors,
+                                   InstructionPlan.Project project) {
+        log.info("🔁 Healing compile errors...");
+
+        // Ask reviewer to fix each generated code file
+        // that is referenced in the error output
+        currentPlan.getTasks().stream()
+                .filter(t -> t.getType() ==
+                        InstructionPlan.TaskType.CODE_GENERATION)
+                .filter(t -> errors.contains(t.getTargetClass()))
+                .forEach(t -> {
+                    try {
+                        log.info("🔧 Fixing {} due to compile error",
+                                t.getTargetClass());
+                        String fixed = reviewerAgent.reviewAndFix(
+                                t.getDescription(),
+                                generatedCode.getOrDefault(t.getId(), ""),
+                                errors,
+                                t.getTargetClass());
+                        writeFile(t, project, fixed);
+                        generatedCode.put(t.getId(), fixed);
+                    } catch (Exception e) {
+                        log.error("Failed to heal {}: {}",
+                                t.getTargetClass(), e.getMessage());
+                    }
+                });
+    }
+
+    // ── Heal test errors ──────────────────────────────────────
+    private void healTestErrors(String errors,
+                                InstructionPlan.Project project) {
+        log.info("🔁 Healing test errors...");
+
+        currentPlan.getTasks().stream()
+                .filter(t -> t.getType() ==
+                        InstructionPlan.TaskType.TEST_GENERATION)
+                .forEach(t -> {
+                    try {
+                        log.info("🔧 Fixing {} due to test failure",
+                                t.getTargetClass());
+                        String fixed = reviewerAgent.reviewAndFix(
+                                t.getDescription(),
+                                generatedCode.getOrDefault(t.getId(), ""),
+                                errors,
+                                t.getTargetClass());
+                        writeFile(t, project, fixed);
+                        generatedCode.put(t.getId(), fixed);
+                    } catch (Exception e) {
+                        log.error("Failed to heal {}: {}",
+                                t.getTargetClass(), e.getMessage());
+                    }
+                });
+    }
+
 
     private boolean areDependenciesMet(InstructionPlan.Task task) {
         if (task.getDependsOn() == null) return true;
@@ -238,13 +249,25 @@ public class AgentOrchestrator {
 
     private String generateFresh(InstructionPlan.Task task,
                                  InstructionPlan.Project project) {
+
         return switch (task.getType()) {
             case CODE_GENERATION -> coderAgent.generateCode(
                     project.getBasePackage(), task.getLayer(),
                     task.getDescription(), task.getTargetClass());
-            case TEST_GENERATION -> testerAgent.generateTests(
+            case TEST_GENERATION -> {
+
+                String serviceClass = findClassNameByLayer(
+                        "service", project);
+                String modelClass = findClassNameByLayer(
+                        "model", project);
+
+                yield testerAgent.generateTests(
                     project.getBasePackage(),
-                    task.getDescription(), task.getTargetClass());
+                    task.getTargetClass(),
+                    task.getDescription(),
+                    serviceClass, modelClass
+                    );
+            }
             default -> throw new IllegalArgumentException(
                     "Cannot generate fresh for type: " + task.getType());
         };
@@ -256,9 +279,15 @@ public class AgentOrchestrator {
             case CODE_GENERATION -> fileWriter.writeJavaFile(
                     project.getOutputDir(), project.getBasePackage(),
                     task.getLayer(), task.getTargetClass(), code);
-            case TEST_GENERATION -> fileWriter.writeTestFile(
+            case TEST_GENERATION ->  {
+                String serviceClass = findClassNameByLayer(
+                        "service", project);
+                String modelClass = findClassNameByLayer(
+                        "model", project);
+                yield fileWriter.writeTestFile(
                     project.getOutputDir(), project.getBasePackage(),
-                    task.getTargetClass(), code);
+                    task.getTargetClass(), code, serviceClass, modelClass);
+            }
             default -> throw new IllegalArgumentException(
                     "Cannot write file for type: " + task.getType());
         };
@@ -295,6 +324,17 @@ public class AgentOrchestrator {
             taskResults.put(task.getId(), TaskResult.failure(task.getId(), e.getMessage()));
             log.error("Git push failed: {}", e.getMessage());
         }
+    }
+
+    private String findClassNameByLayer(String layer,
+                                        InstructionPlan.Project project) {
+        return currentPlan.getTasks().stream()
+                .filter(t -> t.getType() ==
+                        InstructionPlan.TaskType.CODE_GENERATION)
+                .filter(t -> layer.equalsIgnoreCase(t.getLayer()))
+                .map(InstructionPlan.Task::getTargetClass)
+                .findFirst()
+                .orElse("");
     }
 
 }

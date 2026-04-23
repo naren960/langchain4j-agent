@@ -31,7 +31,7 @@ public class OllamaConfig {
         return OllamaChatModel.builder()
                 .baseUrl(baseUrl)
                 .modelName(coderModelName)
-                .temperature(0.2)
+                .temperature(0.0)
                 .timeout(Duration.ofMinutes(timeoutMinutes))
                 .build();
     }
@@ -41,7 +41,7 @@ public class OllamaConfig {
         return OllamaChatModel.builder()
                 .baseUrl(baseUrl)
                 .modelName(testerModelName)
-                .temperature(0.1)
+                .temperature(0.0)
                 .timeout(Duration.ofMinutes(timeoutMinutes))
                 .build();
     }
@@ -51,7 +51,7 @@ public class OllamaConfig {
         return OllamaChatModel.builder()
                 .baseUrl(baseUrl)
                 .modelName(reviewerModelName)
-                .temperature(0.1)
+                .temperature(0.0)
                 .timeout(Duration.ofMinutes(timeoutMinutes))
                 .build();
     }

@@ -1,0 +1,87 @@
+# instructions.yaml
+project:
+  name: UserServicePOC
+  basePackage: com.poc.user
+  outputDir: ./generated
+
+pipeline:
+  maxRetries: 3                    # max regeneration attempts per task
+  pushToGithub: true               # toggle git push on/off
+  createPR: true
+  targetBranch: main
+  workingBranch: agent/generated-  # suffix with timestamp at runtime
+
+tasks:
+  - id: task-001
+    type: CODE_GENERATION
+    description: >
+      Create a UserService class with exactly these methods.
+      Method 1 - createUser(String name, String email) returns void,
+      throws IllegalArgumentException if name or email is null,
+      creates a User using User.builder().id(System.currentTimeMillis()).name(name).email(email).build()
+      and adds it to the list.
+      Method 2 - getUserById(Long id) returns User,
+      throws IllegalArgumentException if id is null,
+      searches the in-memory list by id field and returns matching User or null if not found.
+      Method 3 - deleteUser(Long id) returns void,
+      throws IllegalArgumentException if id is null,
+      removes User with matching id from the list.
+      Use @Service annotation from Spring.
+      Import com.poc.user.model.User.
+      Use a private final List<User> users = new ArrayList<>() as the ONLY data store.
+      Do NOT use any repository, database, JPA, or Spring Data.
+      Do NOT import anything from com.poc.user.repository.
+      Do NOT inject any dependencies in the constructor.
+      Output the Java class only.
+    targetClass: UserService
+    layer: service
+
+  - id: task-002
+    type: CODE_GENERATION
+    description: >
+      Create a User class with exactly these three fields.
+      Field 1 - private Long id.
+      Field 2 - private String name.
+      Field 3 - private String email.
+      Annotate with @Data, @Builder, @NoArgsConstructor and @AllArgsConstructor from Lombok.
+      No additional methods, constructors, or fields.
+      Output the Java class only.
+    targetClass: User
+    layer: model
+
+  - id: task-003
+    type: TEST_GENERATION
+    description: >
+      Create JUnit 5 tests for UserService using Mockito.
+      UserService has NO repository or database dependency.
+      UserService uses only a private in-memory List<User> internally.
+      Instantiate UserService directly using new UserService() in @BeforeEach.
+      Do NOT mock any repository.
+      Do NOT use @InjectMocks or @Mock for any repository class.
+      Do NOT import anything from com.poc.user.repository.
+      The User class has these fields: Long id, String name, String email.
+      The User class uses Lombok @Builder so create User instances like this:
+      User.builder().id(1L).name("John").email("john@example.com").build()
+      Do NOT use new User() or new User(name, email) to create User instances.
+      Test 1 - createUser happy path, call userService.createUser("John", "john@example.com").
+      Test 2 - createUser throws IllegalArgumentException when name is null.
+      Test 3 - createUser throws IllegalArgumentException when email is null.
+      Test 4 - getUserById returns User when id exists,
+      first call createUser then call getUserById with the returned or stored id.
+      Test 5 - getUserById returns null when id does not exist,
+      call getUserById with id 999L and assert result is null.
+      Test 6 - deleteUser happy path with valid id,
+      first call createUser then deleteUser with a valid id.
+      Test 7 - deleteUser throws IllegalArgumentException when id is null.
+      Include all necessary imports.
+      Output the Java test class only.
+    targetClass: UserServiceTest
+    testsFor: task-001
+
+  - id: task-004
+    type: TEST_EXECUTION
+    dependsOn: [task-001, task-002, task-003]
+
+  - id: task-005
+    type: GIT_PUSH
+    dependsOn: [task-004]

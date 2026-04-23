@@ -52,7 +52,7 @@ public class GitService {
                                   String targetBranch, String projectName) throws Exception {
 
         String prBody = """
-            ## 🤖 AI Agent Generated PR
+            ## AI Agent Generated PR
 
             **Project:** %s
             **Branch:** %s
@@ -92,7 +92,7 @@ public class GitService {
                 .send(request, HttpResponse.BodyHandlers.ofString());
 
         if (response.statusCode() == 201) {
-            log.info("✅ PR created successfully");
+            log.info(" PR created successfully");
             // Extract PR URL from response
             String prUrl = objectMapper.readTree(response.body())
                     .get("html_url").asText();

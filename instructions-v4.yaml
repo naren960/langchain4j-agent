@@ -1,0 +1,167 @@
+project:
+  name: Product Catalog Service
+  basePackage: com.poc.productcatalog
+  outputDir: ./generated
+
+tasks:
+  - id: task-001
+    type: CODE_GENERATION
+    description: >
+      Generate the Product model class with id, name, description, price, and category fields.
+      The class should be named Product and be in the com.poc.productcatalog.model package.
+      It should have the following fields and getters/setters:
+      - id (Long, primary key)
+      - name (String, not null, max length 255)
+      - description (String, max length 1000)
+      - price (BigDecimal, not null)
+      - category (String, not null, max length 255)
+      The class should be annotated with @Entity and have the following import statements:
+      - import javax.persistence.Entity;
+      - import javax.persistence.Id;
+      - import javax.persistence.GeneratedValue;
+      - import javax.persistence.GenerationType;
+      - import javax.validation.constraints.NotNull;
+      - import javax.validation.constraints.Size;
+      - import java.math.BigDecimal;
+      Validation rules:
+      - name and category should not be null or empty
+      - description should not exceed 1000 characters
+      - price should be a valid BigDecimal
+      Error handling:
+      - throw a RuntimeException if any of the validation rules are not met
+    targetClass: Product
+    layer: model
+
+  - id: task-002
+    type: CODE_GENERATION
+    description: >
+      Generate the ProductRepository interface with methods to save, find by id, find all, and delete products.
+      The interface should be named ProductRepository and be in the com.poc.productcatalog.repository package.
+      It should extend the JpaRepository interface and have the following methods:
+      - save(Product product)
+      - findById(Long id)
+      - findAll()
+      - deleteById(Long id)
+      The interface should have the following import statements:
+      - import org.springframework.data.jpa.repository.JpaRepository;
+      - import org.springframework.data.jpa.repository.Query;
+      - import org.springframework.data.repository.query.Param;
+      - import java.util.List;
+      - import com.poc.productcatalog.model.Product;
+      Error handling:
+      - throw a RuntimeException if any of the methods fail
+    targetClass: ProductRepository
+    layer: repository
+
+  - id: task-003
+    type: CODE_GENERATION
+    description: >
+      Generate the ProductService class with business logic for managing products.
+      The class should be named ProductService and be in the com.poc.productcatalog.service package.
+      It should have the following methods:
+      - createProduct(Product product)
+      - getProductById(Long id)
+      - getAllProducts()
+      - updateProduct(Product product)
+      - deleteProduct(Long id)
+      The class should have the following import statements:
+      - import com.poc.productcatalog.model.Product;
+      - import com.poc.productcatalog.repository.ProductRepository;
+      - import org.springframework.beans.factory.annotation.Autowired;
+      - import org.springframework.stereotype.Service;
+      Validation rules:
+      - product should not be null
+      - id should be a valid Long
+      Error handling:
+      - throw a RuntimeException if any of the validation rules are not met
+      - throw a RuntimeException if any of the methods fail
+    targetClass: ProductService
+    layer: service
+
+  - id: task-004
+    type: CODE_GENERATION
+    description: >
+      Generate the ProductController class with REST API endpoints for managing products.
+      The class should be named ProductController and be in the com.poc.productcatalog.controller package.
+      It should have the following methods:
+      - getAllProducts()
+      - getProductById(Long id)
+      - createProduct(@RequestBody Product product)
+      - updateProduct(@PathVariable Long id, @RequestBody Product product)
+      - deleteProduct(@PathVariable Long id)
+      The class should have the following import statements:
+      - import com.poc.productcatalog.model.Product;
+      - import com.poc.productcatalog.service.ProductService;
+      - import org.springframework.beans.factory.annotation.Autowired;
+      - import org.springframework.http.ResponseEntity;
+      - import org.springframework.web.bind.annotation.*;
+      Validation rules:
+      - product should not be null
+      - id should be a valid Long
+      Error handling:
+      - throw a RuntimeException if any of the validation rules are not met
+      - throw a RuntimeException if any of the methods fail
+    targetClass: ProductController
+    layer: controller
+
+  - id: task-005
+    type: CODE_GENERATION
+    description: >
+      Generate the application configuration class with database setup.
+      The class should be named DatabaseConfig and be in the com.poc.productcatalog.config package.
+      It should have the following import statements:
+      - import org.springframework.context.annotation.Configuration;
+      - import org.springframework.data.jpa.repository.config.EnableJpaRepositories;
+      - import org.springframework.transaction.annotation.EnableTransactionManagement;
+      Database setup:
+      - use H2 in-memory database for development
+      - use JPA/Hibernate for database operations
+      - configure the application.properties file with the following properties:
+      - spring.datasource.url=jdbc:h2:mem:product-catalog
+      - spring.datasource.driverClassName=org.h2.Driver
+      - spring.datasource.username=sa
+      - spring.datasource.password=
+      - spring.jpa.database-platform=org.hibernate.dialect.H2Dialect
+      - spring.jpa.hibernate.ddl-auto=update
+    targetClass: DatabaseConfig
+    layer: config
+
+  - id: task-006
+    type: TEST_GENERATION
+    description: >
+      Generate JUnit tests for the ProductService class.
+      The tests should cover all methods in the ProductService class.
+      The tests should use the following import statements:
+      - import com.poc.productcatalog.model.Product;
+      - import com.poc.productcatalog.repository.ProductRepository;
+      - import com.poc.productcatalog.service.ProductService;
+      - import org.junit.Test;
+      - import org.junit.runner.RunWith;
+      - import org.springframework.beans.factory.annotation.Autowired;
+      - import org.springframework.boot.test.context.SpringBootTest;
+      - import org.springframework.test.context.junit4.SpringRunner;
+      Test cases:
+      - testCreateProduct()
+      - testGetProductById()
+      - testGetAllProducts()
+      - testUpdateProduct()
+      - testDeleteProduct()
+      Error handling:
+      - throw a RuntimeException if any of the tests fail
+    targetClass: ProductService
+    layer: service
+    testsFor: task-003
+
+  - id: task-007
+    type: TEST_EXECUTION
+    description: >
+      Execute all generated tests.
+      The tests should be executed in the following order:
+      - testCreateProduct()
+      - testGetProductById()
+      - testGetAllProducts()
+      - testUpdateProduct()
+      - testDeleteProduct()
+      Error handling:
+      - throw a RuntimeException if any of the tests fail
+    dependsOn: [task-006]
